@@ -266,3 +266,29 @@ before being called done, not just eyeballed:
   project uses, but flagged for replacement (e.g. with a small numpy RMS
   calculation) before any Python version bump.
 
+
+## Frontend (`web/`)
+
+A Next.js 15 / React 19 / TypeScript console added on top of this backend
+— see `web/README.md` for setup, architecture, and a full accounting of
+what's real vs. mocked in the current deployment. Short version:
+
+- Talks only to the endpoints that exist today: `/health`,
+  `/health/providers`, `POST /v1/dev/token`, `POST /v1/voice/complete`
+  (SSE), and the `/v1/voice/stream` WebSocket. No backend code changed.
+- Root-causes the two integration issues found during deployment testing
+  (`/v1/dev/token` 404, `/v1/voice/complete` 422) against this source —
+  written up in `web/src/components/dashboard/known-issues.tsx` and
+  surfaced in the Settings/dev-token flow, not silently patched around.
+- Socket.IO-client (per the original brief) can't connect to this
+  gateway's plain FastAPI WebSocket endpoint, so the frontend uses the
+  native browser WebSocket API instead — see the note in
+  `web/src/lib/ws/voice-socket.ts`.
+- `MockSTT`/`MockTTS` mean real microphone audio won't transcribe to
+  anything meaningful yet (see `gateway/app/services/voice/stt/mock_stt.py`);
+  the frontend surfaces this honestly and adds a "type instead of speak"
+  path that exercises the same pipeline end-to-end using MockSTT's own
+  documented UTF-8 test convention.
+- There's no backend endpoint to list/read back `VoiceSession` rows, so
+  "Sessions" is a client-side (localStorage) log, clearly labeled as such
+  — not a substitute for a real `GET /v1/sessions`-style endpoint.

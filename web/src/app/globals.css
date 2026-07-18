@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --ink-950: 10 12 16;
+    --ink-900: 14 17 22;
+    --ink-800: 18 22 31;
+    --ink-700: 26 31 43;
+    --ink-600: 36 43 58;
+    --ink-500: 51 61 82;
+    --ink-400: 91 102 127;
+    --ink-300: 136 145 168;
+    --ink-200: 184 191 209;
+    --ink-100: 228 231 239;
+    --ink-50: 245 246 250;
+  }
+
+  .light {
+    color-scheme: light;
+    --ink-950: 245 246 250;
+    --ink-900: 255 255 255;
+    --ink-800: 255 255 255;
+    --ink-700: 228 231 239;
+    --ink-600: 210 215 227;
+    --ink-500: 184 191 209;
+    --ink-400: 116 126 148;
+    --ink-300: 91 102 127;
+    --ink-200: 61 70 92;
+    --ink-100: 26 31 43;
+    --ink-50: 10 12 16;
+  }
+
+  * {
+    @apply border-ink-700;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-ink-950 text-ink-100 font-body antialiased;
+  }
+
+  ::selection {
+    @apply bg-signal-500/30 text-ink-50;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ink-600 rounded-full;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .prose-chat p {
+    @apply mb-3 leading-relaxed last:mb-0;
+  }
+  .prose-chat ul,
+  .prose-chat ol {
+    @apply mb-3 ml-5 list-disc space-y-1 last:mb-0;
+  }
+  .prose-chat code {
+    @apply rounded bg-ink-900 px-1.5 py-0.5 font-mono text-[0.85em] text-stream-300;
+  }
+  .prose-chat pre {
+    @apply mb-3 overflow-x-auto rounded-lg border border-ink-600 bg-ink-950 p-3 font-mono text-xs;
+  }
+  .prose-chat pre code {
+    @apply bg-transparent p-0 text-ink-100;
+  }
+  .prose-chat a {
+    @apply text-stream-300 underline underline-offset-2 hover:text-stream-500;
+  }
+}
