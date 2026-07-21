@@ -45,8 +45,8 @@ export type CompletionStreamEvent =
 // ---- WebSocket /v1/voice/stream protocol (gateway/app/routers/voice_ws.py) ----
 
 export type ClientControlMessage =
-  | { type: "start_session"; language_hint: string }
-  | { type: "switch_language"; language: string }
+  | { type: "start_session"; language_hint: string; target_language?: string | null }
+  | { type: "switch_language"; language: string; target_language?: string | null }
   | { type: "end_session" };
 
 export type ServerControlMessage =
