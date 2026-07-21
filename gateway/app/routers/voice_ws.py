@@ -238,6 +238,7 @@ async def _process_utterance(
             user_text=transcript.text,
             language=active_language,
             target_language=state.target_language,
+            input_language=active_language,
         )
     except AllProvidersFailedError:
         await websocket.send_json({"type": "error", "detail": "all LLM providers unavailable"})

@@ -14,12 +14,28 @@ export interface CompletionChunk {
  *
  * Frames without an explicit `event:` line are treated as "message".
  */
+export interface CompletionLanguageOptions {
+  /** Language the prompt is romanized text in, e.g. "te" for Telugu typed in Latin letters. */
+  inputLanguage?: string | null;
+  /** Language (romanized) the reply should come back in, e.g. "ta" for Tamil. */
+  targetLanguage?: string | null;
+}
+
 export async function* streamCompletion(
   prompt: string,
   token: string | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  languages?: CompletionLanguageOptions
 ): AsyncGenerator<CompletionChunk> {
-  const res = await apiPostStream("/v1/voice/complete", { prompt }, { token, signal });
+  const res = await apiPostStream(
+    "/v1/voice/complete",
+    {
+      prompt,
+      input_language: languages?.inputLanguage || null,
+      target_language: languages?.targetLanguage || null,
+    },
+    { token, signal }
+  );
   const body = res.body;
   if (!body) throw new Error("Response has no readable body (SSE unsupported in this runtime)");
 

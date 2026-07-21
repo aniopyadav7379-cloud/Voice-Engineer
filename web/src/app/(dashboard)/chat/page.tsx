@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Send, RotateCcw, Trash2, AlertCircle, Bot, User as UserIcon } from "lucide-react";
+import { Send, RotateCcw, Trash2, AlertCircle, Bot, User as UserIcon, Languages } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/input";
+import { Textarea, Select } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAuth } from "@/lib/store/auth-context";
 import { streamCompletion } from "@/lib/api/chat";
 import { ApiError } from "@/lib/api/client";
+import { LANGUAGES } from "@/i18n/languages";
 import { cn } from "@/lib/utils";
 
 interface ChatMessage {
@@ -31,6 +32,8 @@ export default function ChatPage() {
   const { token } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [chatLanguage, setChatLanguage] = useState("");  // "" = plain English, no romanization instruction
+  const [replyLanguage, setReplyLanguage] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -64,7 +67,10 @@ export default function ChatPage() {
       abortRef.current = controller;
 
       try {
-        for await (const chunk of streamCompletion(prompt, token, controller.signal)) {
+        for await (const chunk of streamCompletion(prompt, token, controller.signal, {
+          inputLanguage: chatLanguage || null,
+          targetLanguage: replyLanguage || chatLanguage || null,
+        })) {
           if (chunk.event === "provider") {
             setMessages((prev) =>
               prev.map((m) => (m.id === assistantId ? { ...m, provider: chunk.data } : m))
@@ -92,7 +98,7 @@ export default function ChatPage() {
         setIsStreaming(false);
       }
     },
-    [token]
+    [token, chatLanguage, replyLanguage]
   );
 
   const handleSend = () => {
@@ -182,6 +188,40 @@ export default function ChatPage() {
           </div>
 
           <div className="border-t border-ink-700 p-4">
+            <div className="mb-3 flex flex-wrap gap-3">
+              <div className="flex-1 min-w-[180px]">
+                <label className="mb-1 flex items-center gap-1.5 text-xs text-ink-400">
+                  <Languages className="h-3.5 w-3.5" /> Chat language
+                </label>
+                <Select value={chatLanguage} onChange={(e) => setChatLanguage(e.target.value)}>
+                  <option value="">English</option>
+                  {LANGUAGES.filter((l) => l.code !== "en").map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label} (type in Roman letters)
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="flex-1 min-w-[180px]">
+                <label className="mb-1 flex items-center gap-1.5 text-xs text-ink-400">
+                  <Languages className="h-3.5 w-3.5" /> Reply language
+                </label>
+                <Select value={replyLanguage} onChange={(e) => setReplyLanguage(e.target.value)}>
+                  <option value="">Same as chat language</option>
+                  {LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label} {l.code !== "en" ? "(Roman letters)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+            {(chatLanguage || replyLanguage) && (
+              <p className="mb-3 text-[11px] text-ink-500">
+                Type using the English keyboard — e.g. &quot;Nenu ela unnanu?&quot; for Telugu, not native
+                script. Replies come back the same way, in Roman letters.
+              </p>
+            )}
             <div className="flex items-end gap-2">
               <Textarea
                 value={input}

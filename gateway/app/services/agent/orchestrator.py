@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from app.services.memory.qdrant_memory import ConversationMemory
 from app.services.provider_router import AllProvidersFailedError, ProviderRouter
-from app.services.voice.lid import LANGUAGE_NAMES
+from app.services.translation_prompt import build_translation_instruction
 
 
 @dataclass
@@ -37,12 +37,13 @@ class AgentOrchestrator:
         user_text: str,
         language: str,
         target_language: str | None = None,
+        input_language: str | None = None,
     ) -> TurnResult:
         context_turns = await self._memory.retrieve_context(
             tenant_id=tenant_id, session_id=session_id, query_text=user_text, top_k=self._top_k,
         )
 
-        prompt = self._build_prompt(context_turns, user_text, target_language)
+        prompt = self._build_prompt(context_turns, user_text, target_language, input_language)
 
         try:
             provider_name, stream = await self._provider_router.complete(prompt)
@@ -61,7 +62,12 @@ class AgentOrchestrator:
         return TurnResult(reply_text=reply_text, provider_used=provider_name, context_turns_used=len(context_turns))
 
     @staticmethod
-    def _build_prompt(context_turns: list, user_text: str, target_language: str | None = None) -> str:
+    def _build_prompt(
+        context_turns: list,
+        user_text: str,
+        target_language: str | None = None,
+        input_language: str | None = None,
+    ) -> str:
         if not context_turns:
             body = user_text
         else:
@@ -73,11 +79,7 @@ class AgentOrchestrator:
                 f"Current message: {user_text}"
             )
 
-        if target_language:
-            language_name = LANGUAGE_NAMES.get(target_language, target_language)
-            body = (
-                f"Reply only in {language_name}, regardless of what language the message below is "
-                f"written in. Do not add translation notes or repeat the original text — just answer "
-                f"naturally in {language_name}.\n\n{body}"
-            )
+        instruction = build_translation_instruction(target_language, input_language)
+        if instruction:
+            body = f"{instruction}\n\n{body}"
         return body

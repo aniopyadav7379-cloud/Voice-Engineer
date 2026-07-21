@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from app.db.models import Tenant
 from app.middleware.rate_limit import enforce_rate_limit
 from app.services.provider_router import AllProvidersFailedError, ProviderRouter, get_provider_router
-from app.services.voice.lid import LANGUAGE_NAMES
+from app.services.translation_prompt import build_translation_instruction
 
 router = APIRouter(prefix="/v1/voice", tags=["voice"])
 
@@ -22,6 +22,7 @@ router = APIRouter(prefix="/v1/voice", tags=["voice"])
 class CompletionRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=4000)
     target_language: str | None = None  # e.g. "hi" — reply in this language regardless of prompt's language
+    input_language: str | None = None  # e.g. "te" — prompt is romanized text in this language
 
 
 @router.post("/complete")
@@ -34,13 +35,9 @@ async def complete(
     (all via the `enforce_rate_limit` dependency chain) and then streams a
     completion back, failing over across providers transparently."""
     prompt = body.prompt
-    if body.target_language:
-        language_name = LANGUAGE_NAMES.get(body.target_language, body.target_language)
-        prompt = (
-            f"Reply only in {language_name}, regardless of what language the message below is "
-            f"written in. Do not add translation notes or repeat the original text — just answer "
-            f"naturally in {language_name}.\n\n{body.prompt}"
-        )
+    instruction = build_translation_instruction(body.target_language, body.input_language)
+    if instruction:
+        prompt = f"{instruction}\n\n{body.prompt}"
 
     try:
         provider_name, stream = await provider_router.complete(prompt)

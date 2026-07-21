@@ -25,9 +25,19 @@ const nextId = () => `turn-${++idCounter}-${Date.now()}`;
  * returns today is literally UTF-8 text bytes (`[mock-tts:<lang>] ...`),
  * not decodable audio — so this decodes it for display instead of trying
  * to play it through the Web Audio API, which would just produce noise.
+ *
+ * IMPORTANT: mock_tts.py chunks that UTF-8 payload every 32 bytes, with no
+ * regard for character boundaries. Devanagari/Bengali/Tamil/etc. characters
+ * are 2-3 bytes each in UTF-8, so a chunk boundary frequently lands in the
+ * middle of one. Decoding each chunk with a brand-new TextDecoder (as this
+ * used to do) corrupts every such character into "�" — that's the garbled
+ * Hindi/Telugu text you'd see mid-word. A single TextDecoder instance per
+ * connection, called with `{ stream: true }`, buffers incomplete trailing
+ * bytes and prepends them to the next chunk instead of losing them.
  */
-function decodeMockAudioChunk(buf: ArrayBuffer): string {
-  return new TextDecoder().decode(buf);
+function createMockAudioDecoder() {
+  const decoder = new TextDecoder("utf-8");
+  return (buf: ArrayBuffer) => decoder.decode(buf, { stream: true });
 }
 
 export function useVoiceSession(token: string | null) {
@@ -39,6 +49,7 @@ export function useVoiceSession(token: string | null) {
   const [currentTargetLanguage, setCurrentTargetLanguage] = useState<string | null>(null);
   const [turns, setTurns] = useState<VoiceTurn[]>([]);
   const mockAudioBufferRef = useRef<string>("");
+  const mockAudioDecoderRef = useRef<((buf: ArrayBuffer) => string) | null>(null);
 
   const pushTurn = useCallback((turn: Omit<VoiceTurn, "id" | "timestamp">) => {
     setTurns((prev) => [...prev, { ...turn, id: nextId(), timestamp: Date.now() }]);
@@ -111,11 +122,12 @@ export function useVoiceSession(token: string | null) {
       pushTurn({ role: "system", kind: "error", text: "No auth token — issue one in Settings first." });
       return;
     }
+    mockAudioDecoderRef.current = createMockAudioDecoder();
     const socket = new VoiceSocket({
       onStatusChange: setStatus,
       onServerMessage: handleServerMessage,
       onAudioChunk: (chunk) => {
-        mockAudioBufferRef.current += decodeMockAudioChunk(chunk);
+        mockAudioBufferRef.current += mockAudioDecoderRef.current!(chunk);
       },
     });
     socket.connect(token);
