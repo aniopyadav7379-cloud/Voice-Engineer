@@ -35,11 +35,26 @@ from dataclasses import dataclass, field
 
 _SCRIPT_RANGES: dict[str, tuple[int, int]] = {
     "hi": (0x0900, 0x097F),  # Devanagari
+    "bn": (0x0980, 0x09FF),  # Bengali
     "ta": (0x0B80, 0x0BFF),  # Tamil
     "te": (0x0C00, 0x0C7F),  # Telugu
+    "kn": (0x0C80, 0x0CFF),  # Kannada
     "ml": (0x0D00, 0x0D7F),  # Malayalam
 }
-SUPPORTED_LANGUAGES = {"en", "hi", "ta", "te", "ml"}
+SUPPORTED_LANGUAGES = {"en", "hi", "bn", "ta", "te", "kn", "ml"}
+
+# Human-readable names for prompt-building (translation instructions read
+# far better as "reply in Telugu" than "reply in te"). Matches
+# web/src/i18n/languages.ts on the frontend.
+LANGUAGE_NAMES: dict[str, str] = {
+    "en": "English",
+    "hi": "Hindi",
+    "bn": "Bengali",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+}
 
 
 @dataclass

@@ -36,6 +36,7 @@ export function useVoiceSession(token: string | null) {
   const [status, setStatus] = useState<VoiceSocketStatus>("idle");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentLanguage, setCurrentLanguage] = useState("en");
+  const [currentTargetLanguage, setCurrentTargetLanguage] = useState<string | null>(null);
   const [turns, setTurns] = useState<VoiceTurn[]>([]);
   const mockAudioBufferRef = useRef<string>("");
 
@@ -50,7 +51,9 @@ export function useVoiceSession(token: string | null) {
           sessionIdRef.current = msg.session_id;
           setSessionId(msg.session_id);
           setCurrentLanguage(msg.language);
-          pushTurn({ role: "system", kind: "status", text: `Session started (${msg.language})` });
+          setCurrentTargetLanguage(msg.target_language ?? null);
+          const targetNote = msg.target_language ? `, replying in ${msg.target_language}` : "";
+          pushTurn({ role: "system", kind: "status", text: `Session started (${msg.language}${targetNote})` });
           const claims = token ? tokenClaims(token) : null;
           const tenantId = typeof claims?.tenant_id === "string" ? claims.tenant_id : null;
           logSessionStarted(msg.session_id, tenantId, msg.language);
@@ -62,6 +65,7 @@ export function useVoiceSession(token: string | null) {
           break;
         case "language_switched":
           setCurrentLanguage(msg.language);
+          if ("target_language" in msg) setCurrentTargetLanguage(msg.target_language ?? null);
           pushTurn({ role: "system", kind: "status", text: `Language switched to ${msg.language}` });
           if (sessionIdRef.current) logLanguageUsed(sessionIdRef.current, msg.language);
           break;
@@ -127,8 +131,12 @@ export function useVoiceSession(token: string | null) {
   }, [mic]);
 
   const startSession = useCallback(
-    (languageHint: string) => {
-      socketRef.current?.sendControl({ type: "start_session", language_hint: languageHint });
+    (languageHint: string, targetLanguage?: string | null) => {
+      socketRef.current?.sendControl({
+        type: "start_session",
+        language_hint: languageHint,
+        target_language: targetLanguage ?? null,
+      });
     },
     []
   );
@@ -138,8 +146,12 @@ export function useVoiceSession(token: string | null) {
     socketRef.current?.sendControl({ type: "end_session" });
   }, [mic]);
 
-  const switchLanguage = useCallback((language: string) => {
-    socketRef.current?.sendControl({ type: "switch_language", language });
+  const switchLanguage = useCallback((language: string, targetLanguage?: string | null) => {
+    socketRef.current?.sendControl({
+      type: "switch_language",
+      language,
+      ...(targetLanguage !== undefined ? { target_language: targetLanguage } : {}),
+    });
   }, []);
 
   /** Sends typed text through the same pipeline a real utterance would use
@@ -156,6 +168,7 @@ export function useVoiceSession(token: string | null) {
     status,
     sessionId,
     currentLanguage,
+    currentTargetLanguage,
     turns,
     connect,
     disconnect,

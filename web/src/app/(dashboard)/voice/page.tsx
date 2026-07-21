@@ -19,6 +19,7 @@ export default function VoiceStudioPage() {
   const { token } = useAuth();
   const session = useVoiceSession(token);
   const [languageHint, setLanguageHint] = useState("en");
+  const [targetLanguage, setTargetLanguage] = useState("");  // "" = reply in the same language you speak
   const [typedText, setTypedText] = useState("");
 
   const connected = session.status === "open";
@@ -73,12 +74,34 @@ export default function VoiceStudioPage() {
                 </Select>
               </div>
 
+              <div>
+                <label className="mb-1 flex items-center gap-1.5 text-xs text-ink-400">
+                  <Languages className="h-3.5 w-3.5" /> Reply in
+                </label>
+                <Select
+                  value={targetLanguage}
+                  onChange={(e) => setTargetLanguage(e.target.value)}
+                  disabled={sessionActive}
+                >
+                  <option value="">Same as what I speak</option>
+                  {LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label} — {l.nativeLabel}
+                    </option>
+                  ))}
+                </Select>
+                <p className="mt-1 text-[11px] text-ink-500">
+                  E.g. speak Telugu, set this to Hindi — every reply is translated into Hindi regardless
+                  of what you speak.
+                </p>
+              </div>
+
               {!sessionActive ? (
                 <Button
                   variant="stream"
                   className="w-full"
                   disabled={!connected}
-                  onClick={() => session.startSession(languageHint)}
+                  onClick={() => session.startSession(languageHint, targetLanguage || null)}
                 >
                   Start session
                 </Button>
@@ -88,11 +111,17 @@ export default function VoiceStudioPage() {
                     <span className="text-ink-400">Active language</span>
                     <Badge variant="stream">{session.currentLanguage}</Badge>
                   </div>
+                  {session.currentTargetLanguage && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-ink-400">Replying in</span>
+                      <Badge variant="stream">{session.currentTargetLanguage}</Badge>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-1.5">
                     {LANGUAGES.map((l) => (
                       <button
                         key={l.code}
-                        onClick={() => session.switchLanguage(l.code)}
+                        onClick={() => session.switchLanguage(l.code, targetLanguage || null)}
                         className={cn(
                           "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                           session.currentLanguage === l.code

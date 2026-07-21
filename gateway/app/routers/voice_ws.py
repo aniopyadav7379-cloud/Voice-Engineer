@@ -69,6 +69,10 @@ class _ConnectionState:
     lid: LanguageIdentifier
     segmenter: UtteranceSegmenter
     voice_session: VoiceSession | None = None
+    # None means "reply in whatever language was detected/spoken" (old
+    # behavior); set means "always translate the reply into this language,
+    # independent of the input language".
+    target_language: str | None = None
 
 
 async def _check_rate_limit(limiter: RedisTokenBucketLimiter, tenant: Tenant) -> bool:
@@ -156,11 +160,13 @@ async def _handle_control_message(
             return False
         language_hint = msg.get("language_hint", "en")
         state.lid.current_language = language_hint
+        state.target_language = msg.get("target_language")  # optional; None = reply in spoken language
         state.voice_session = await session_mgr.start(tenant_id=tenant.id, initial_language=language_hint)
         await websocket.send_json({
             "type": "session_started",
             "session_id": str(state.voice_session.id),
             "language": language_hint,
+            "target_language": state.target_language,
         })
         return False
 
@@ -175,9 +181,16 @@ async def _handle_control_message(
             await websocket.send_json({"type": "error", "detail": str(e)})
             return False
 
+        if "target_language" in msg:
+            state.target_language = msg.get("target_language")  # may be explicitly None
+
         pending = state.segmenter.flush_if_pending()  # don't silently drop audio mid-switch
         await session_mgr.record_language(state.voice_session, language)
-        await websocket.send_json({"type": "language_switched", "language": language})
+        await websocket.send_json({
+            "type": "language_switched",
+            "language": language,
+            "target_language": state.target_language,
+        })
         if pending:
             await _process_utterance(pending, websocket, tenant, state, session_mgr, agent, limiter)
         return False
@@ -224,12 +237,14 @@ async def _process_utterance(
             session_id=str(state.voice_session.id),
             user_text=transcript.text,
             language=active_language,
+            target_language=state.target_language,
         )
     except AllProvidersFailedError:
         await websocket.send_json({"type": "error", "detail": "all LLM providers unavailable"})
         return
 
-    async for audio_chunk in _tts.synthesize(turn.reply_text, language=active_language):
+    reply_language = state.target_language or active_language
+    async for audio_chunk in _tts.synthesize(turn.reply_text, language=reply_language):
         await websocket.send_bytes(audio_chunk)
 
     await websocket.send_json({"type": "turn_complete"})

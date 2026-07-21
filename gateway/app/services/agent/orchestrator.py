@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from app.services.memory.qdrant_memory import ConversationMemory
 from app.services.provider_router import AllProvidersFailedError, ProviderRouter
+from app.services.voice.lid import LANGUAGE_NAMES
 
 
 @dataclass
@@ -29,13 +30,19 @@ class AgentOrchestrator:
         self._top_k = top_k
 
     async def handle_turn(
-        self, *, tenant_id: str, session_id: str, user_text: str, language: str
+        self,
+        *,
+        tenant_id: str,
+        session_id: str,
+        user_text: str,
+        language: str,
+        target_language: str | None = None,
     ) -> TurnResult:
         context_turns = await self._memory.retrieve_context(
             tenant_id=tenant_id, session_id=session_id, query_text=user_text, top_k=self._top_k,
         )
 
-        prompt = self._build_prompt(context_turns, user_text)
+        prompt = self._build_prompt(context_turns, user_text, target_language)
 
         try:
             provider_name, stream = await self._provider_router.complete(prompt)
@@ -54,14 +61,23 @@ class AgentOrchestrator:
         return TurnResult(reply_text=reply_text, provider_used=provider_name, context_turns_used=len(context_turns))
 
     @staticmethod
-    def _build_prompt(context_turns: list, user_text: str) -> str:
+    def _build_prompt(context_turns: list, user_text: str, target_language: str | None = None) -> str:
         if not context_turns:
-            return user_text
+            body = user_text
+        else:
+            # Oldest-first reads more naturally than raw similarity-score order
+            ordered = sorted(context_turns, key=lambda t: t.score or 0, reverse=True)
+            context_lines = "\n".join(f"{t.role}: {t.text}" for t in ordered)
+            body = (
+                f"Relevant context from earlier in this conversation:\n{context_lines}\n\n"
+                f"Current message: {user_text}"
+            )
 
-        # Oldest-first reads more naturally than raw similarity-score order
-        ordered = sorted(context_turns, key=lambda t: t.score or 0, reverse=True)
-        context_lines = "\n".join(f"{t.role}: {t.text}" for t in ordered)
-        return (
-            f"Relevant context from earlier in this conversation:\n{context_lines}\n\n"
-            f"Current message: {user_text}"
-        )
+        if target_language:
+            language_name = LANGUAGE_NAMES.get(target_language, target_language)
+            body = (
+                f"Reply only in {language_name}, regardless of what language the message below is "
+                f"written in. Do not add translation notes or repeat the original text — just answer "
+                f"naturally in {language_name}.\n\n{body}"
+            )
+        return body

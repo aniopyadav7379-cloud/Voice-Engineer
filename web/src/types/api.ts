@@ -50,9 +50,9 @@ export type ClientControlMessage =
   | { type: "end_session" };
 
 export type ServerControlMessage =
-  | { type: "session_started"; session_id: string; language: string }
+  | { type: "session_started"; session_id: string; language: string; target_language?: string | null }
   | { type: "transcript"; text: string; language: string }
-  | { type: "language_switched"; language: string }
+  | { type: "language_switched"; language: string; target_language?: string | null }
   | { type: "turn_complete" }
   | { type: "session_ended" }
   | { type: "error"; detail: string };
