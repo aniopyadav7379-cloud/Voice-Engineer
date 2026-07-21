@@ -108,15 +108,17 @@ def build_provider_router() -> ProviderRouter:
     """Constructs the router from configured credentials. Called once at
     startup; the mock provider is always appended last so the gateway is
     runnable even with zero real API keys configured."""
+    from app.services.providers.groq_provider import GroqProvider
     from app.services.providers.mock_provider import MockProvider
     from app.services.providers.openai_provider import OpenAIProvider
 
     available: dict[str, ProviderAdapter] = {}
     if settings.openai_api_key:
         available["openai"] = OpenAIProvider(settings.openai_api_key)
-    # groq / gemini / azure_openai adapters follow the same shape as
-    # OpenAIProvider — add them here once implemented (stage 3 of the
-    # PRD timeline covers full multi-provider failover testing).
+    if settings.groq_api_key:
+        available["groq"] = GroqProvider(settings.groq_api_key)
+    # gemini / azure_openai adapters follow the same shape as OpenAIProvider —
+    # add them here once implemented.
 
     ordered = [available[name] for name in settings.provider_priority if name in available]
     ordered.append(MockProvider())  # always-available last resort
