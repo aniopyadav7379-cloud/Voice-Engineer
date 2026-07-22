@@ -39,9 +39,15 @@ class AgentOrchestrator:
         target_language: str | None = None,
         input_language: str | None = None,
     ) -> TurnResult:
-        context_turns = await self._memory.retrieve_context(
-            tenant_id=tenant_id, session_id=session_id, query_text=user_text, top_k=self._top_k,
-        )
+        # Translation mode is stateless per-message by design — pulling in
+        # prior-turn context here would bias the model toward continuing a
+        # conversation instead of translating this message on its own.
+        if target_language:
+            context_turns = []
+        else:
+            context_turns = await self._memory.retrieve_context(
+                tenant_id=tenant_id, session_id=session_id, query_text=user_text, top_k=self._top_k,
+            )
 
         prompt = self._build_prompt(context_turns, user_text, target_language, input_language)
 
