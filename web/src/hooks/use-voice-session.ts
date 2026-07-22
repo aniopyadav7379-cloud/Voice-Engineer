@@ -20,6 +20,39 @@ let idCounter = 0;
 const nextId = () => `turn-${++idCounter}-${Date.now()}`;
 
 /**
+ * Speaks the assistant's reply aloud using the browser's built-in
+ * SpeechSynthesis API. This is a client-side stand-in for real TTS: the
+ * gateway's MockTTS only ever sends the reply as text (see mock_tts.py),
+ * and Groq doesn't offer solid Hindi/Telugu/Tamil/Kannada/Bengali TTS
+ * today — but every modern browser ships system voices for these
+ * languages already, so this gets real spoken audio with zero backend
+ * changes or new API keys. Swap for a server-side TTSAdapter (ElevenLabs,
+ * Azure Speech) later if browser voice quality isn't good enough.
+ */
+const SPEECH_LANG_TAGS: Record<string, string> = {
+  en: "en-US",
+  hi: "hi-IN",
+  te: "te-IN",
+  ta: "ta-IN",
+  kn: "kn-IN",
+  bn: "bn-IN",
+  ml: "ml-IN",
+};
+
+function speakReply(rawText: string, languageCode: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  // Strip the "[mock-tts:xx] " debug prefix mock_tts.py adds — that's for
+  // the on-screen text preview, not something that should be read aloud.
+  const text = rawText.replace(/^\[mock-tts:[a-z]{2}\]\s*/i, "");
+  if (!text) return;
+
+  window.speechSynthesis.cancel(); // don't overlap with a previous reply
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = SPEECH_LANG_TAGS[languageCode] ?? "en-US";
+  window.speechSynthesis.speak(utterance);
+}
+
+/**
  * Reassembles the mock-TTS binary stream back into text. As documented in
  * gateway/app/services/voice/tts/mock_tts.py, the "audio" the pipeline
  * returns today is literally UTF-8 text bytes (`[mock-tts:<lang>] ...`),
@@ -43,10 +76,20 @@ function createMockAudioDecoder() {
 export function useVoiceSession(token: string | null) {
   const socketRef = useRef<VoiceSocket | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const currentLanguageRef = useRef("en");
+  const currentTargetLanguageRef = useRef<string | null>(null);
   const [status, setStatus] = useState<VoiceSocketStatus>("idle");
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [currentLanguage, setCurrentLanguage] = useState("en");
-  const [currentTargetLanguage, setCurrentTargetLanguage] = useState<string | null>(null);
+  const [currentLanguage, setCurrentLanguageState] = useState("en");
+  const [currentTargetLanguage, setCurrentTargetLanguageState] = useState<string | null>(null);
+  const setCurrentLanguage = useCallback((lang: string) => {
+    currentLanguageRef.current = lang;
+    setCurrentLanguageState(lang);
+  }, []);
+  const setCurrentTargetLanguage = useCallback((lang: string | null) => {
+    currentTargetLanguageRef.current = lang;
+    setCurrentTargetLanguageState(lang);
+  }, []);
   const [turns, setTurns] = useState<VoiceTurn[]>([]);
   const mockAudioBufferRef = useRef<string>("");
   const mockAudioDecoderRef = useRef<((buf: ArrayBuffer) => string) | null>(null);
@@ -85,6 +128,7 @@ export function useVoiceSession(token: string | null) {
           mockAudioBufferRef.current = "";
           if (text) {
             pushTurn({ role: "assistant", kind: "mock-tts", text });
+            speakReply(text, currentTargetLanguageRef.current || currentLanguageRef.current);
           }
           if (sessionIdRef.current) logTurn(sessionIdRef.current);
           break;

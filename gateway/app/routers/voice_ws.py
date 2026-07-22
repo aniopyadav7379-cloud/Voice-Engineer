@@ -46,8 +46,10 @@ from app.services.agent.dependencies import get_agent_orchestrator
 from app.services.agent.orchestrator import AgentOrchestrator
 from app.services.provider_router import AllProvidersFailedError
 from app.services.rate_limiter import RateLimitExceeded, RedisTokenBucketLimiter, get_rate_limiter
+from app.config import settings
 from app.services.voice.lid import LanguageIdentifier
 from app.services.voice.session_manager import SessionManager
+from app.services.voice.stt.groq_whisper_stt import GroqWhisperSTT
 from app.services.voice.stt.mock_stt import MockSTT
 from app.services.voice.tts.mock_tts import MockTTS
 from app.services.voice.utterance_buffer import UtteranceSegmenter
@@ -56,11 +58,12 @@ from app.services.voice.vad import EnergyVAD
 logger = logging.getLogger("gateway.voice_ws")
 router = APIRouter(prefix="/v1/voice", tags=["voice"])
 
-# Stage 2 wires mock STT/TTS by default — same zero-external-dependency demo
-# philosophy as stage 1's provider router. Swap for Deepgram/ElevenLabs
-# adapters implementing STTAdapter/TTSAdapter; nothing in this handler needs
-# to change since it only depends on the abstract interfaces.
-_stt = MockSTT()
+# Real STT when a Groq key is configured; mock fallback keeps local dev/tests
+# working with zero external dependencies, same as the LLM provider router.
+# TTS is still mock-only — swap for ElevenLabs/Azure Speech by implementing
+# TTSAdapter; nothing in this handler needs to change since it only depends
+# on the abstract interfaces.
+_stt = GroqWhisperSTT(settings.groq_api_key) if settings.groq_api_key else MockSTT()
 _tts = MockTTS()
 
 
