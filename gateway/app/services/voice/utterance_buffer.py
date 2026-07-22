@@ -21,7 +21,10 @@ from app.services.voice.vad import EnergyVAD
 class UtteranceSegmenter:
     vad: EnergyVAD
     silence_frames_to_flush: int = 15   # e.g. 15 * 20ms = 300ms of silence ends an utterance
-    min_speech_frames: int = 3          # ignore blips shorter than this
+    min_speech_frames: int = 8          # 8 * 20ms = 160ms — ignore clicks/pops shorter than this
+                                          # (was 3 / 60ms — too short, let noise blips through to STT,
+                                          # which Whisper then "transcribes" as hallucinated phrases
+                                          # like "Thank you." instead of returning nothing)
 
     _buffer: list[bytes] = field(default_factory=list)
     _speech_frame_count: int = 0

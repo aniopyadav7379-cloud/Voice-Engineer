@@ -56,8 +56,18 @@ export async function* streamCompletion(
       let event: CompletionChunk["event"] = "message";
       let data = "";
       for (const line of rawFrame.split("\n")) {
-        if (line.startsWith("event:")) event = line.slice(6).trim() as CompletionChunk["event"];
-        else if (line.startsWith("data:")) data += line.slice(5).trim();
+        if (line.startsWith("event:")) {
+          event = line.slice(6).trim() as CompletionChunk["event"];
+        } else if (line.startsWith("data:")) {
+          // SSE spec: exactly one leading space after "data:" is a field
+          // delimiter, not content — strip only that, not the whole
+          // token. The old `.trim()` here stripped every leading/trailing
+          // space from every streamed chunk, so a token like " world"
+          // became "world" and ran straight into the previous word —
+          // that's why replies rendered as "Hello.I'mdoingwell...".
+          const value = line.slice(5);
+          data += value.startsWith(" ") ? value.slice(1) : value;
+        }
       }
       if (data.length > 0 || event === "done") yield { event, data };
     }

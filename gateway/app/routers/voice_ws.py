@@ -225,6 +225,17 @@ async def _process_utterance(
         await websocket.send_json({"type": "error", "detail": "rate limit exceeded"})
         return
 
+    # Whisper (like most STT models) hallucinates plausible-sounding phrases
+    # — "Thank you.", "Bye.", etc. — when fed very short or near-silent
+    # clips instead of returning empty. The segmenter's min_speech_frames
+    # is short enough that a mic click or brief noise blip can still reach
+    # here as a "complete utterance". Require a minimum real duration
+    # before ever calling STT; anything shorter is treated as noise, not
+    # a missed word, and silently dropped rather than fabricating a reply.
+    MIN_UTTERANCE_BYTES = 12_800  # ~0.4s @ 16kHz mono 16-bit PCM
+    if len(audio) < MIN_UTTERANCE_BYTES:
+        return
+
     transcript = await _stt.transcribe(audio, language_hint=state.lid.current_language)
     active_language = state.lid.observe(transcript.text)
 
